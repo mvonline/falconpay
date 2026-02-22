@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, VersionColumn } from 'typeorm';
 
 export enum WalletType {
     PERSONAL = 'PERSONAL',
@@ -34,6 +34,10 @@ export class Wallet {
 
     @UpdateDateColumn()
     updatedAt: Date;
+
+    @VersionColumn()
+    version: number; // For Layer 2: Optimistic Locking
+
 }
 
 export enum MemberRole {

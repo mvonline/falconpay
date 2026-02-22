@@ -427,7 +427,13 @@ services:
       - ./frontend:/usr/src/app
       - /usr/src/app/node_modules
     ports:
-      - "80:5173"
+      - "5173"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend-dev.rule=Host(`app.${DOMAIN_NAME:-localhost}`)"
+      - "traefik.http.routers.frontend-dev.entrypoints=websecure"
+      - "traefik.http.routers.frontend-dev.tls.certresolver=myresolver"
+      - "traefik.http.services.frontend-dev.loadbalancer.server.port=5173"
     command: sh -c "npm install && npm run dev -- --host"
     depends_on:
       - api-gateway-dev
@@ -596,7 +602,13 @@ services:
       context: ./frontend
     container_name: falconpay-frontend
     ports:
-      - "80:80"
+      - "80"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=Host(`app.${DOMAIN_NAME:-falconpay.com}`)"
+      - "traefik.http.routers.frontend.entrypoints=websecure"
+      - "traefik.http.routers.frontend.tls.certresolver=myresolver"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
     networks:
       - falconpay-network
     depends_on:

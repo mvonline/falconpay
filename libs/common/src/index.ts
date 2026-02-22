@@ -14,9 +14,5 @@ export * from './metrics/metrics.service';
 export * from './tracing/tracing.setup';
 export * from './entities/outbox.entity';
 export * from './interceptors/circuit-breaker.interceptor';
-
-
-
-
-
-
+export * from './redis/redis.module';
+export * from './redis/redlock.service';

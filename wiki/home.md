@@ -4,8 +4,10 @@ Welcome to the internal documentation for the FalconPay Microservices Platform. 
 
 ## 🗺️ Navigation
 
-### 1. [Architecture & Patterns](./architecture.md)
-Explore the monorepo structure, event-driven design, and our implementation of the Saga and Outbox patterns.
+### 🛠️ Architecture & Core Logic
+- **[Architecture & Patterns](./architecture.md)**: Core design principles.
+- **[Concurrency & Integrity](./concurrency.md)**: **TLCC Strategy (Distributed Locks & Atomic Updates).**
+- **[Financial Reconciliation](./integrity.md)**: Data Janitor auditor.
 
 ### 2. [Security & Compliance](./security.md)
 Detailed guide on JWT authentication, 2FA (TOTP), and centralized secret management with HashiCorp Vault.
