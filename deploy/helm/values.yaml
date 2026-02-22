@@ -1,0 +1,35 @@
+global:
+  environment: production
+  replicaCount: 2
+
+# Resource Quotas for 40/40 Maturity
+resources:
+  auth:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  payment:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  wallet:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+# Infrastructure
+kafka:
+  enabled: true
+  replicas: 3
+postgresql:
+  enabled: true
+  storage: 10Gi

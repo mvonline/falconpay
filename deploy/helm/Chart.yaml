@@ -1,0 +1,6 @@
+apiVersion: v2
+name: falconpay
+description: A Helm chart for FalconPay Microservices
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

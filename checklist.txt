@@ -1,0 +1,146 @@
+This 10-question checklist is designed so that if the answer to most of them is "no," then we have a Distributed Monolith:
+
+Checklist for Distinguishing a Real Microservice from a Distributed Monolith
+1. Deployment Independence
+Question: If you want to make a small change to the "Shopping Cart" service, do you have to redeploy the "Users" or "Products" services at the same time, or worry about their API versions?
+
+Breaking Point: If the versioning is so tight that the services have to be brought up together, you have a monolith that only has separate builds.
+
+2. Data Ownership
+Question: Is service A allowed to query (join or select) service B's database directly?
+
+Breaking Point: If you have a shared database, you are effectively in the data layer of the monolith. In microservices, service A only has access to data from service B through API or Event.
+
+3. Scaling and Concurrency
+Question: If we bring up 10 instances of service X right now, will the system experience a race condition or lock the database?
+
+Breakpoint: If your service is not stateless and cannot work in parallel behind a Load Balancer, scaling is practically meaningless.
+
+4. Failure Isolation
+Question: If the "Send SMS" service is completely unavailable, will the "Place Order" process also be blocked?
+
+Breakpoint: If the failure of one service like Domino causes the others to crash, that is, you do not have Circuit Breaker mechanisms or Asynchronous communications (such as using RabbitMQ/Kafka).
+
+5. Observability
+Question: When a user request encounters an error, can you trace the exact path of that request across 5 different services (Tracing), or do you have to look for a needle in a haystack in 5 different server logs?
+
+Breakpoint: Without Distributed Tracing (like Jaeger or Zipkin), microservice management is complete blindness.
+
+6. Infrastructure Management (Orchestration)
+Question: If one of the services crashes, will the system detect it and replace it with a new version (Self-healing), or will the admin have to manually start it?
+
+Breakpoint: This is where Kubernetes (K8s) comes into play. If you don't have an orchestrator, you're manually managing a huge mess.
+
+7. Communication Pattern
+Question: What percentage of your service communications are HTTP/Rest (synchronous) and what percentage are Event/Message (asynchronous) based?
+
+Breakpoint: If 90% of the communication is synchronous, you have created a chain of dependencies where the entire chain breaks if one link is broken.
+
+8. Code Sharing
+Question: Do you have a large shared library that contains business logic and all services depend on it?
+
+Breakpoint: Changing that library means forcing changes in all services; this means strong dependencies at the code layer.
+
+9. Testability
+Question: To test Service A, do you really need to bring up all the other services in the organization on your system?
+
+Breakpoint: In a real microservice, you should be able to test your service in isolation by mocking other services.
+
+10. Distributed Transactions
+Question: When a transaction is performed in three different services and the third service fails, how do you roll back the data in the first two services?
+
+Breaking Point: If you don't have an answer for Saga Pattern or Compensating Transactions, your data will definitely become inconsistent in the long run.
+
+
+
+
+Microservices Maturity Scorecard Checklist
+Part 1: Isolation
+Dedicated Database: Does each service have its own database, and no other service has direct SELECT or JOIN permission on its tables? (Database-per-service)
+
+Independent Deployment: Can you deploy a new version of the "Payment" service during peak hours, without having to update or restart any other services at the same time?
+
+Business Isolation: If the "Customers" domain changes (e.g., the national code field becomes mandatory), can you handle this change without changing the "Warehouse" service code?
+
+Part 2: Connectivity
+Asynchronous Communication: Are more than 60% of critical communications between services done through a Message Broker (e.g., Kafka/RabbitMQ)? (Do not score if most of the traffic is direct HTTP/REST).
+
+Resilience: Is there a Circuit Breaker mechanism (such as Resilience4j or Envoy) implemented so that if service B slows down, service A immediately stops trying and does not keep the system suspended?
+
+Service Discovery: Do the services not know each other's IP addresses and find each other through a mechanism such as K8s Service or Consul?
+
+Section 3: Resilience and Operations
+
+Observability: Can you see all the steps of a request that has been passed through 5 different services in a monitor (such as Jaeger or Zipkin) with a Correlation ID?
+
+Horizontal Scalability: If the system load increases, can you increase the number of instances of a particular service from 2 to 10 in less than 30 seconds without disrupting the database or system state?
+
+Centralized Configuration: Is the service configuration (Config) managed outside the code and centrally (such as K8s ConfigMap or Vault)?
+
+Section 4: Data Consistency
+Distributed Transaction Management: In a process involving multiple services, do you have a mechanism for logical Rollback (such as the Saga Pattern) or is the data from previous services left to God if the last service fails?
+
+📊 Score Analysis (out of 10 points)
+Score 8 to 10: The Holy Grail
+Congratulations! You have accepted the tough challenges and have a system that is truly scalable and reliable. Your maintenance costs are high, but the system does not become paralyzed.
+
+Score 5 to 7: Pragmatic Microservices
+You are on the right track, but you are probably still stuck in areas such as shared databases or heavy deployment dependencies. Be careful not to let this "neither skewer nor kebab" get you into trouble in the long run.
+
+Score 3-4: The Distributed Monolith
+Danger Zone! You've combined all the bad things about a monolith (hard to change) with all the bad things about microservices (network complexity and debugging). Your team is probably spending most of their time coordinating simultaneous deployments and troubleshooting network errors.
+
+Score 0-2: Modular Monolith - failed version
+To be honest, you've just broken up an application and run it on different servers. Not only is this not profitable, it's also drastically reducing performance and unnecessarily increasing infrastructure costs.
+
+
+
+Scoring is simple: each true "yes" answer (with technical proof) is worth 1 point.
+
+Section 1: Data & Consistency - 10 points
+1. Does each service have its own schema that no other service has access to?
+2. Do you use a separate database (Read Model/Data Warehouse) for cross-service reporting?
+3. Do you have a Saga mechanism (either Orchestration or Choreography) implemented in case of a multi-step operation failure?
+4. Do you use the Outbox pattern to ensure that messages are sent after they are stored in the database?
+5. Have you embraced the concepts of Eventual Consistency in your business or are you still struggling with distributed transactions (2PC)?
+6. Do you have a service that shares more than 5 tables with another service? (If yes, full points!)
+7. Does each service have its own Redis or isolated cache for temporary data and cache?
+8. Do you have a mechanism to clean up corrupt data caused by failed distributed transactions?
+9. Do you use CQRS to separate reads and writes in heavy services?
+10. Do you need to coordinate with other teams to change the database structure of a service?
+
+Section 2: Communication and Networking - 10 points
+11. Do you use an API Gateway to manage authentication and routing?
+12. Are synchronous (REST/gRPC) communications between services minimized (below 20%)?
+13. Do you use a Service Mesh (like Istio or Linkerd) to manage internal traffic?
+14. Do you have Circuit Breaker enabled on clients to prevent chaining errors?
+15. Do you use a standard Message Broker for asynchronous communications?
+16. Is there a Message Replay feature in case the destination service fails?
+17. Are your messages Idempotent? (If a message arrives twice, won't it be a disaster?)
+18. Do you use API contracts (like OpenAPI/Swagger) that are automatically checked?
+19. Do you use binary protocols like gRPC or Protobuf for sensitive and fast communications?
+20. Does your Service Discovery mechanism immediately delist an instance if it crashes?
+
+Section 3: Deployment & Infra - 10 points
+21. Do you use Kubernetes or a similar orchestration tool to manage containers?
+22. Does each service have a completely separate CI/CD pipeline?
+23. Can you release service A 10 times a day while service B doesn't update month after month?
+24. Do you use Helm Charts or Customize to manage the configuration of different environments?
+25. Have you implemented the Sidecar Container concept in your project (e.g. for logs or proxies)?
+26. Does your infrastructure have Auto-scaling capability based on load (CPU/RAM/Request)?
+27. Do you use a Zero-downtime Deployment mechanism (e.g. Rolling Update or Blue-Green)?
+28. Do you use a tool like Vault or K8s Secrets to manage Secrets (passwords and keys)?
+29. Are resource limits defined for each container so that a service does not consume the entire server?
+30. Are your containers Stateless? (i.e., no critical data is lost when restarted?)
+
+Section 4: Observability and Debugging (Observability) - 10 points
+31. Do you use Distributed Tracing to track requests between services?
+32. Are all logs from all services collected in a centralized structure (e.g. ELK or LGTM)?
+33. Do you have a dashboard (like Grafana) that shows the health of each service at a glance?
+34. Is a single Trace ID issued for each request that is passed across all headers?
+35. Does your monitoring system have the ability to send alerts if the 500 error rate goes above 100?
+36. Do you monitor business metrics (e.g., number of successful purchases per minute)?
+37. Are your logs structured (Structured Logging - JSON)?
+38. Do you have synthetic tests that periodically test user scenarios on production?
+39. Can you figure out which microservices are causing the most latency to the user?
+40. Is it possible for you to profile the code in production?
