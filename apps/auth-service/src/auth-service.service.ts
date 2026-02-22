@@ -21,25 +21,30 @@ export class AuthServiceService {
   ) { }
 
   async register(registerDto: RegisterDto) {
-    const { phone, password } = registerDto;
+    const { phone, password, email, firstName, lastName } = registerDto;
 
-    const existingUser = await this.userRepository.findOne({ where: { phone } });
+    const existingUser = await this.userRepository.findOne({
+      where: [{ phone }, { email }]
+    });
     if (existingUser) {
-      throw new ConflictException('Phone number already registered');
+      throw new ConflictException('User with this phone or email already exists');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = this.userRepository.create({
       phone,
+      email,
       password: hashedPassword,
     });
 
     const savedUser = await this.userRepository.save(user);
 
-    // Publish event to Kafka
+    // Publish event to Kafka with profile info
     this.kafkaClient.emit(KafkaTopics.USER_CREATED, {
       userId: savedUser.id,
       phone: savedUser.phone,
+      email: savedUser.email,
+      fullName: `${firstName} ${lastName}`.trim(),
     });
 
     return {
@@ -48,8 +53,10 @@ export class AuthServiceService {
     };
   }
 
-  async validateUser(phone: string, pass: string): Promise<any> {
-    const user = await this.userRepository.findOne({ where: { phone } });
+  async validateUser(identifier: string, pass: string): Promise<any> {
+    const user = await this.userRepository.findOne({
+      where: [{ phone: identifier }, { email: identifier }]
+    });
     if (user && (await bcrypt.compare(pass, user.password))) {
       const { password, ...result } = user;
       return result;

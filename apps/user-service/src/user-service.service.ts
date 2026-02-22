@@ -14,10 +14,11 @@ export class UserServiceService {
     private readonly kycProvider: StubKycProvider,
   ) { }
 
-  async createProfile(data: { userId: string; phone: string }) {
+  async createProfile(data: { userId: string; phone: string; email?: string; fullName?: string }) {
     this.logger.log(`Creating profile for user: ${data.userId}`);
     const profile = this.profileRepository.create({
       userId: data.userId,
+      fullName: data.fullName,
     });
     return this.profileRepository.save(profile);
   }

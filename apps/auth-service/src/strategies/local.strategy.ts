@@ -6,7 +6,7 @@ import { AuthServiceService } from '../auth-service.service';
 @Injectable()
 export class LocalStrategy extends PassportStrategy(Strategy) {
     constructor(private authService: AuthServiceService) {
-        super({ usernameField: 'phone' });
+        super({ usernameField: 'username' });
     }
 
     async validate(phone: string, passport: string): Promise<any> {

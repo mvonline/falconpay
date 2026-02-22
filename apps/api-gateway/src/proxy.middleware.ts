@@ -15,6 +15,10 @@ export class ProxyMiddleware implements NestMiddleware {
     };
 
     use(req: Request, res: Response, next: NextFunction) {
+        if (req.method === 'OPTIONS') {
+            return next();
+        }
+        console.log('Gateway Request:', req.method, req.url);
         const path = Object.keys(this.routes).find((p) => req.url.startsWith(p));
 
         if (path) {

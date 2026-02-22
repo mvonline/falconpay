@@ -13,17 +13,29 @@ export class SharedConfigModule {
                 ConfigModule.forRoot({
                     isGlobal: true,
                     envFilePath,
+                    // All vars are optional here — each service is responsible
+                    // for providing the vars it needs via docker-compose env or .env file.
+                    // Joi is only used for typing/defaults, not as a strict gatekeeper.
                     validationSchema: Joi.object({
-                        KAFKA_BROKERS: Joi.string().required(),
-                        DB_HOST: Joi.string().required(),
-                        DB_PORT: Joi.number().required(),
-                        DB_USERNAME: Joi.string().required(),
-                        DB_PASSWORD: Joi.string().required(),
+                        KAFKA_BROKERS: Joi.string().optional(),
+                        DB_HOST: Joi.string().optional(),
+                        DB_PORT: Joi.number().optional(),
+                        DB_USERNAME: Joi.string().optional(),
+                        DB_PASSWORD: Joi.string().optional(),
+                        DB_NAME: Joi.string().optional(),
+                        DB_SYNC: Joi.boolean().optional(),
+                        REDIS_HOST: Joi.string().optional(),
+                        REDIS_PORT: Joi.number().optional(),
+                        MONGO_URI: Joi.string().optional(),
                         JWT_SECRET: Joi.string().default('secret'),
                         USE_VAULT: Joi.boolean().default(false),
                         VAULT_ADDR: Joi.string().optional(),
                         VAULT_TOKEN: Joi.string().optional(),
                     }),
+                    validationOptions: {
+                        allowUnknown: true,
+                        abortEarly: false,
+                    },
                 }),
             ],
             providers: [SecretManagerService],
@@ -31,4 +43,3 @@ export class SharedConfigModule {
         };
     }
 }
-

@@ -1,5 +1,5 @@
 export const KAFA_CLIENT_ID = 'falcon-pay';
-export const KAFKA_BROKERS = ['localhost:9092'];
+export const KAFKA_BROKERS = (process.env.KAFKA_BROKERS || 'kafka:29092').split(',');
 
 export enum ServiceNames {
     AUTH = 'AUTH_SERVICE',

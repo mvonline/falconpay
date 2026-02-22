@@ -1,32 +1,4 @@
-version: '3.8'
-
 services:
-  # --- Edge Router (Reverse Proxy & SSL) ---
-  traefik:
-    image: traefik:v2.10
-    container_name: falconpay-traefik
-    command:
-      - "--api.insecure=true"
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-      - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
-      - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL:-admin@falconpay.com}"
-      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
-      # --- Force SSL Middleware ---
-      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
-      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
-    ports:
-      - "80:80"
-      - "443:443"
-      - "8081:8080" # Dashboard
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./letsencrypt:/letsencrypt
-    networks:
-      - falconpay-network
-
   # --- Databases ---
   postgres_auth:
     image: postgres:16-alpine
@@ -39,6 +11,11 @@ services:
       - "5432:5432"
     volumes:
       - pg_auth_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U falconpay -d auth_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - falconpay-network
 
@@ -53,6 +30,11 @@ services:
       - "5433:5432"
     volumes:
       - pg_user_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U falconpay -d user_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - falconpay-network
 
@@ -67,6 +49,11 @@ services:
       - "5434:5432"
     volumes:
       - pg_payment_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U falconpay -d payment_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - falconpay-network
 
@@ -81,6 +68,11 @@ services:
       - "5435:5432"
     volumes:
       - pg_wallet_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U falconpay -d wallet_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - falconpay-network
 
@@ -95,6 +87,11 @@ services:
       - "5436:5432"
     volumes:
       - pg_reporting_data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U falconpay -d reporting_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - falconpay-network
 
@@ -135,6 +132,12 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
       KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    healthcheck:
+      test: [ "CMD-SHELL", "bash -c 'cat < /dev/null > /dev/tcp/localhost/9092'" ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
     networks:
       - falconpay-network
 
@@ -250,13 +253,7 @@ services:
     volumes:
       - .:/usr/src/app
     ports:
-      - "3000" # Internal only, exposed via Traefik
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.gateway-dev.rule=Host(`${DOMAIN_NAME:-localhost}`)"
-      - "traefik.http.routers.gateway-dev.entrypoints=websecure"
-      - "traefik.http.routers.gateway-dev.tls.certresolver=myresolver"
-      - "traefik.http.services.gateway-dev.loadbalancer.server.port=3000"
+      - "3000:3000"
     command: npm run start:dev -- api-gateway
     environment:
       - AUTH_SERVICE_URL=http://auth-service-dev:3001
@@ -291,8 +288,10 @@ services:
     networks:
       - falconpay-network
     depends_on:
-      - postgres_auth
-      - kafka
+      postgres_auth:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
 
   user-service-dev:
     profiles: [ "dev" ]
@@ -314,7 +313,10 @@ services:
     networks:
       - falconpay-network
     depends_on:
-      - postgres_user
+      postgres_user:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
 
   payment-service-dev:
     profiles: [ "dev" ]
@@ -336,7 +338,10 @@ services:
     networks:
       - falconpay-network
     depends_on:
-      - postgres_payment
+      postgres_payment:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
 
   wallet-service-dev:
     profiles: [ "dev" ]
@@ -355,10 +360,16 @@ services:
       - DB_PASSWORD=password
       - DB_NAME=wallet_db
       - KAFKA_BROKERS=kafka:29092
+      - REDIS_HOST=redis
     networks:
       - falconpay-network
     depends_on:
-      - postgres_wallet
+      postgres_wallet:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   notification-service-dev:
     profiles: [ "dev" ]
@@ -374,6 +385,9 @@ services:
       - KAFKA_BROKERS=kafka:29092
     networks:
       - falconpay-network
+    depends_on:
+      kafka:
+        condition: service_healthy
 
   reporting-service-dev:
     profiles: [ "dev" ]
@@ -396,8 +410,12 @@ services:
     networks:
       - falconpay-network
     depends_on:
-      - postgres_reporting
-      - mongo
+      postgres_reporting:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+      kafka:
+        condition: service_healthy
 
   reconciliation-service-dev:
     profiles: [ "dev" ]
@@ -415,8 +433,10 @@ services:
     networks:
       - falconpay-network
     depends_on:
-      - postgres_payment
-      - postgres_wallet
+      postgres_payment:
+        condition: service_healthy
+      postgres_wallet:
+        condition: service_healthy
 
   frontend-dev:
     profiles: [ "dev" ]
@@ -427,13 +447,7 @@ services:
       - ./frontend:/usr/src/app
       - /usr/src/app/node_modules
     ports:
-      - "5173"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.frontend-dev.rule=Host(`app.${DOMAIN_NAME:-localhost}`)"
-      - "traefik.http.routers.frontend-dev.entrypoints=websecure"
-      - "traefik.http.routers.frontend-dev.tls.certresolver=myresolver"
-      - "traefik.http.services.frontend-dev.loadbalancer.server.port=5173"
+      - "5173:5173"
     command: sh -c "npm install && npm run dev -- --host"
     depends_on:
       - api-gateway-dev
@@ -449,13 +463,7 @@ services:
         SERVICE_NAME: api-gateway
     container_name: falconpay-api-gateway
     ports:
-      - "3000" # Internal only, exposed via Traefik
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.gateway.rule=Host(`${DOMAIN_NAME:-falconpay.com}`)"
-      - "traefik.http.routers.gateway.entrypoints=websecure"
-      - "traefik.http.routers.gateway.tls.certresolver=myresolver"
-      - "traefik.http.services.gateway.loadbalancer.server.port=3000"
+      - "3000:3000"
     environment:
       - AUTH_SERVICE_URL=http://auth-service:3001
       - USER_SERVICE_URL=http://user-service:3002
@@ -485,8 +493,10 @@ services:
     networks:
       - falconpay-network
     depends_on:
-      - postgres_auth
-      - kafka
+      postgres_auth:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
 
   user-service:
     profiles: [ "prod" ]
@@ -505,7 +515,10 @@ services:
     networks:
       - falconpay-network
     depends_on:
-      - postgres_user
+      postgres_user:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
 
   payment-service:
     profiles: [ "prod" ]
@@ -524,7 +537,10 @@ services:
     networks:
       - falconpay-network
     depends_on:
-      - postgres_payment
+      postgres_payment:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
 
   wallet-service:
     profiles: [ "prod" ]
@@ -543,7 +559,10 @@ services:
     networks:
       - falconpay-network
     depends_on:
-      - postgres_wallet
+      postgres_wallet:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
 
   notification-service:
     profiles: [ "prod" ]
@@ -554,6 +573,9 @@ services:
     container_name: falconpay-notification-service
     environment:
       - KAFKA_BROKERS=kafka:29092
+    depends_on:
+      kafka:
+        condition: service_healthy
     networks:
       - falconpay-network
 
@@ -575,8 +597,12 @@ services:
     networks:
       - falconpay-network
     depends_on:
-      - postgres_reporting
-      - mongo
+      postgres_reporting:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+      kafka:
+        condition: service_healthy
 
   reconciliation-service:
     profiles: [ "prod" ]
@@ -602,13 +628,7 @@ services:
       context: ./frontend
     container_name: falconpay-frontend
     ports:
-      - "80"
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=Host(`app.${DOMAIN_NAME:-falconpay.com}`)"
-      - "traefik.http.routers.frontend.entrypoints=websecure"
-      - "traefik.http.routers.frontend.tls.certresolver=myresolver"
-      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+      - "80:80"
     networks:
       - falconpay-network
     depends_on:

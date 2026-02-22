@@ -15,7 +15,7 @@ export const TabNavigation = ({ activeTab, onTabChange }: { activeTab: string, o
                 <button
                     key={tab.id}
                     onClick={() => onTabChange(tab.id)}
-                    className="relative flex flex-col items-center gap-1 group"
+                    className="relative flex flex-col items-center gap-1 group cursor-pointer active:scale-95 transition-transform duration-200"
                 >
                     <div className={`p-1.5 rounded-xl transition-colors ${activeTab === tab.id ? 'text-primary' : 'text-gray-400 group-hover:text-gray-600'}`}>
                         <tab.icon size={24} />

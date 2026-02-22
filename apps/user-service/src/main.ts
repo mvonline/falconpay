@@ -22,6 +22,7 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe());
 
   await app.startAllMicroservices();
+  app.enableCors();
   await app.listen(3002);
   console.log(`User Service is running on: ${await app.getUrl()}`);
 }

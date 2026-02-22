@@ -8,7 +8,11 @@ export class AuthMiddleware implements NestMiddleware {
     constructor(private readonly configService: ConfigService) { }
 
     use(req: Request, res: Response, next: NextFunction) {
-        if (req.url.startsWith('/auth')) {
+        if (req.method === 'OPTIONS') {
+            return next();
+        }
+        const path = req.originalUrl || req.url;
+        if (path.includes('/auth/register') || path.includes('/auth/login')) {
             return next();
         }
 

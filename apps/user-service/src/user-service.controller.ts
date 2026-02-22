@@ -8,7 +8,7 @@ export class UserServiceController {
   constructor(private readonly userService: UserServiceService) { }
 
   @MessagePattern(KafkaTopics.USER_CREATED)
-  async handleUserCreated(@Payload() data: { userId: string; phone: string }) {
+  async handleUserCreated(@Payload() data: { userId: string; phone: string; email?: string; fullName?: string }) {
     return this.userService.createProfile(data);
   }
 

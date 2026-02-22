@@ -3,6 +3,7 @@ import { ApiGatewayModule } from './api-gateway.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(ApiGatewayModule);
-  await app.listen(process.env.port ?? 3000);
+  app.enableCors();
+  await app.listen(process.env.port ?? 3000, '0.0.0.0');
 }
 bootstrap();
