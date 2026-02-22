@@ -92,27 +92,22 @@ services:
     networks:
       - falconpay-network
 
-  # --- Message Broker (Kafka KRaft) ---
+  # --- Messaging Infrastructure ---
   kafka:
     image: confluentinc/cp-kafka:7.5.0
     container_name: falconpay-kafka
     ports:
       - "9092:9092"
-      - "9094:9094"
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
       KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092'
-      KAFKA_JMX_PORT: 9101
-      KAFKA_JMX_HOSTNAME: localhost
       KAFKA_PROCESS_ROLES: 'broker,controller'
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:29093'
       KAFKA_LISTENERS: 'PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093,PLAINTEXT_HOST://0.0.0.0:9092'
       KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
       KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
-      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
-      # Replace with a fixed cluster ID for persistence
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
     networks:
       - falconpay-network
@@ -146,6 +141,20 @@ services:
     networks:
       - falconpay-network
 
+  # --- Security Infrastructure ---
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: falconpay-vault
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_ADDR: http://127.0.0.1:8200
+      VAULT_DEV_ROOT_TOKEN_ID: root
+    cap_add:
+      - IPC_LOCK
+    networks:
+      - falconpay-network
+
   keycloak:
     image: quay.io/keycloak/keycloak:23.0
     container_name: falconpay-keycloak
@@ -164,25 +173,10 @@ services:
     networks:
       - falconpay-network
 
-  vault:
-    image: hashicorp/vault:1.15
-    container_name: falconpay-vault
-    ports:
-      - "8200:8200"
-    environment:
-      VAULT_DEV_ROOT_TOKEN_ID: root
-      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
-    cap_add:
-      - IPC_LOCK
-    networks:
-      - falconpay-network
-
   # --- Observability ---
   prometheus:
     image: prom/prometheus:latest
     container_name: falconpay-prometheus
-    ports:
-      - "9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
     networks:
@@ -201,19 +195,12 @@ services:
   jaeger:
     image: jaegertracing/all-in-one:latest
     container_name: falconpay-jaeger
-    ports:
-      - "16686:16686"
-      - "14268:14268"
-      - "4317:4317"
-      - "4318:4318"
     networks:
       - falconpay-network
 
   loki:
     image: grafana/loki:latest
     container_name: falconpay-loki
-    ports:
-      - "3100:3100"
     command: -config.file=/etc/loki/local-config.yaml
     networks:
       - falconpay-network
@@ -228,6 +215,351 @@ services:
     networks:
       - falconpay-network
 
+  # --- DEVELOPMENT PROFILE (Hot Reload) ---
+  api-gateway-dev:
+    profiles: [ "dev" ]
+    image: node:20-alpine
+    container_name: falconpay-gateway-dev
+    working_dir: /usr/src/app
+    volumes:
+      - .:/usr/src/app
+    ports:
+      - "3000:3000"
+    command: npm run start:dev -- api-gateway
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service-dev:3001
+      - USER_SERVICE_URL=http://user-service-dev:3002
+      - PAYMENT_SERVICE_URL=http://payment-service-dev:3003
+      - WALLET_SERVICE_URL=http://wallet-service-dev:3004
+      - NOTIFICATION_SERVICE_URL=http://notification-service-dev:3005
+      - REPORTING_SERVICE_URL=http://reporting-service-dev:3006
+    networks:
+      - falconpay-network
+    depends_on:
+      - auth-service-dev
+
+  auth-service-dev:
+    profiles: [ "dev" ]
+    image: node:20-alpine
+    container_name: falconpay-auth-dev
+    working_dir: /usr/src/app
+    volumes:
+      - .:/usr/src/app
+    ports:
+      - "3001:3001"
+      - "50051:50051" # gRPC
+    command: npm run start:dev -- auth-service
+    environment:
+      - DB_HOST=postgres_auth
+      - DB_PORT=5432
+      - DB_USERNAME=falconpay
+      - DB_PASSWORD=password
+      - DB_NAME=auth_db
+      - KAFKA_BROKERS=kafka:29092
+    networks:
+      - falconpay-network
+    depends_on:
+      - postgres_auth
+      - kafka
+
+  user-service-dev:
+    profiles: [ "dev" ]
+    image: node:20-alpine
+    container_name: falconpay-user-dev
+    working_dir: /usr/src/app
+    volumes:
+      - .:/usr/src/app
+    ports:
+      - "3002:3002"
+    command: npm run start:dev -- user-service
+    environment:
+      - DB_HOST=postgres_user
+      - DB_PORT=5432
+      - DB_USERNAME=falconpay
+      - DB_PASSWORD=password
+      - DB_NAME=user_db
+      - KAFKA_BROKERS=kafka:29092
+    networks:
+      - falconpay-network
+    depends_on:
+      - postgres_user
+
+  payment-service-dev:
+    profiles: [ "dev" ]
+    image: node:20-alpine
+    container_name: falconpay-payment-dev
+    working_dir: /usr/src/app
+    volumes:
+      - .:/usr/src/app
+    ports:
+      - "3003:3003"
+    command: npm run start:dev -- payment-service
+    environment:
+      - DB_HOST=postgres_payment
+      - DB_PORT=5432
+      - DB_USERNAME=falconpay
+      - DB_PASSWORD=password
+      - DB_NAME=payment_db
+      - KAFKA_BROKERS=kafka:29092
+    networks:
+      - falconpay-network
+    depends_on:
+      - postgres_payment
+
+  wallet-service-dev:
+    profiles: [ "dev" ]
+    image: node:20-alpine
+    container_name: falconpay-wallet-dev
+    working_dir: /usr/src/app
+    volumes:
+      - .:/usr/src/app
+    ports:
+      - "3004:3004"
+    command: npm run start:dev -- wallet-service
+    environment:
+      - DB_HOST=postgres_wallet
+      - DB_PORT=5432
+      - DB_USERNAME=falconpay
+      - DB_PASSWORD=password
+      - DB_NAME=wallet_db
+      - KAFKA_BROKERS=kafka:29092
+    networks:
+      - falconpay-network
+    depends_on:
+      - postgres_wallet
+
+  notification-service-dev:
+    profiles: [ "dev" ]
+    image: node:20-alpine
+    container_name: falconpay-notification-dev
+    working_dir: /usr/src/app
+    volumes:
+      - .:/usr/src/app
+    ports:
+      - "3005:3005"
+    command: npm run start:dev -- notification-service
+    environment:
+      - KAFKA_BROKERS=kafka:29092
+    networks:
+      - falconpay-network
+
+  reporting-service-dev:
+    profiles: [ "dev" ]
+    image: node:20-alpine
+    container_name: falconpay-reporting-dev
+    working_dir: /usr/src/app
+    volumes:
+      - .:/usr/src/app
+    ports:
+      - "3006:3006"
+    command: npm run start:dev -- reporting-service
+    environment:
+      - DB_HOST=postgres_reporting
+      - DB_PORT=5432
+      - DB_USERNAME=falconpay
+      - DB_PASSWORD=password
+      - DB_NAME=reporting_db
+      - MONGO_URI=mongodb://mongo:27017/reporting
+      - KAFKA_BROKERS=kafka:29092
+    networks:
+      - falconpay-network
+    depends_on:
+      - postgres_reporting
+      - mongo
+
+  reconciliation-service-dev:
+    profiles: [ "dev" ]
+    image: node:20-alpine
+    container_name: falconpay-reconciliation-dev
+    working_dir: /usr/src/app
+    volumes:
+      - .:/usr/src/app
+    command: npm run start:dev -- reconciliation-service
+    environment:
+      - DB_HOST_PAYMENT=postgres_payment
+      - DB_HOST_WALLET=postgres_wallet
+      - DB_USERNAME=falconpay
+      - DB_PASSWORD=password
+    networks:
+      - falconpay-network
+    depends_on:
+      - postgres_payment
+      - postgres_wallet
+
+  frontend-dev:
+    profiles: [ "dev" ]
+    build:
+      context: ./frontend
+    container_name: falconpay-frontend-dev
+    ports:
+      - "80:80"
+    networks:
+      - falconpay-network
+    depends_on:
+      - api-gateway-dev
+
+  # --- PRODUCTION PROFILE (Optimized) ---
+  api-gateway:
+    profiles: [ "prod" ]
+    build:
+      context: .
+      args:
+        SERVICE_NAME: api-gateway
+    container_name: falconpay-api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - USER_SERVICE_URL=http://user-service:3002
+      - PAYMENT_SERVICE_URL=http://payment-service:3003
+      - WALLET_SERVICE_URL=http://wallet-service:3004
+      - NOTIFICATION_SERVICE_URL=http://notification-service:3005
+      - REPORTING_SERVICE_URL=http://reporting-service:3006
+    networks:
+      - falconpay-network
+    depends_on:
+      - auth-service
+
+  auth-service:
+    profiles: [ "prod" ]
+    build:
+      context: .
+      args:
+        SERVICE_NAME: auth-service
+    container_name: falconpay-auth-service
+    environment:
+      - DB_HOST=postgres_auth
+      - DB_PORT=5432
+      - DB_USERNAME=falconpay
+      - DB_PASSWORD=password
+      - DB_NAME=auth_db
+      - KAFKA_BROKERS=kafka:29092
+    networks:
+      - falconpay-network
+    depends_on:
+      - postgres_auth
+      - kafka
+
+  user-service:
+    profiles: [ "prod" ]
+    build:
+      context: .
+      args:
+        SERVICE_NAME: user-service
+    container_name: falconpay-user-service
+    environment:
+      - DB_HOST=postgres_user
+      - DB_PORT=5432
+      - DB_USERNAME=falconpay
+      - DB_PASSWORD=password
+      - DB_NAME=user_db
+      - KAFKA_BROKERS=kafka:29092
+    networks:
+      - falconpay-network
+    depends_on:
+      - postgres_user
+
+  payment-service:
+    profiles: [ "prod" ]
+    build:
+      context: .
+      args:
+        SERVICE_NAME: payment-service
+    container_name: falconpay-payment-service
+    environment:
+      - DB_HOST=postgres_payment
+      - DB_PORT=5432
+      - DB_USERNAME=falconpay
+      - DB_PASSWORD=password
+      - DB_NAME=payment_db
+      - KAFKA_BROKERS=kafka:29092
+    networks:
+      - falconpay-network
+    depends_on:
+      - postgres_payment
+
+  wallet-service:
+    profiles: [ "prod" ]
+    build:
+      context: .
+      args:
+        SERVICE_NAME: wallet-service
+    container_name: falconpay-wallet-service
+    environment:
+      - DB_HOST=postgres_wallet
+      - DB_PORT=5432
+      - DB_USERNAME=falconpay
+      - DB_PASSWORD=password
+      - DB_NAME=wallet_db
+      - KAFKA_BROKERS=kafka:29092
+    networks:
+      - falconpay-network
+    depends_on:
+      - postgres_wallet
+
+  notification-service:
+    profiles: [ "prod" ]
+    build:
+      context: .
+      args:
+        SERVICE_NAME: notification-service
+    container_name: falconpay-notification-service
+    environment:
+      - KAFKA_BROKERS=kafka:29092
+    networks:
+      - falconpay-network
+
+  reporting-service:
+    profiles: [ "prod" ]
+    build:
+      context: .
+      args:
+        SERVICE_NAME: reporting-service
+    container_name: falconpay-reporting-service
+    environment:
+      - DB_HOST=postgres_reporting
+      - DB_PORT=5432
+      - DB_USERNAME=falconpay
+      - DB_PASSWORD=password
+      - DB_NAME=reporting_db
+      - MONGO_URI=mongodb://mongo:27017/reporting
+      - KAFKA_BROKERS=kafka:29092
+    networks:
+      - falconpay-network
+    depends_on:
+      - postgres_reporting
+      - mongo
+
+  reconciliation-service:
+    profiles: [ "prod" ]
+    build:
+      context: .
+      args:
+        SERVICE_NAME: reconciliation-service
+    container_name: falconpay-reconciliation-service
+    environment:
+      - DB_HOST_PAYMENT=postgres_payment
+      - DB_HOST_WALLET=postgres_wallet
+      - DB_USERNAME=falconpay
+      - DB_PASSWORD=password
+    networks:
+      - falconpay-network
+    depends_on:
+      - postgres_payment
+      - postgres_wallet
+
+  frontend:
+    profiles: [ "prod" ]
+    build:
+      context: ./frontend
+    container_name: falconpay-frontend
+    ports:
+      - "80:80"
+    networks:
+      - falconpay-network
+    depends_on:
+      - api-gateway
+
 networks:
   falconpay-network:
     driver: bridge
@@ -241,5 +573,3 @@ volumes:
   pg_keycloak_data:
   redis_data:
   mongo_data:
-
-

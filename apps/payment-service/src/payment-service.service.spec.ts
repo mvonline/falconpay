@@ -1,7 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { PaymentServiceService } from '../payment-service.service';
-import { Transaction } from '../entities/transaction.entity';
+import { PaymentServiceService } from './payment-service.service';
+import { Transaction } from './entities/transaction.entity';
 import { DataSource } from 'typeorm';
 import { KafkaTopics, ServiceNames, OutboxStatus } from '@app/common';
 

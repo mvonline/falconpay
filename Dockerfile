@@ -1,27 +1,34 @@
-# Build stage
-FROM node:18-alpine AS development
+# --- Build Stage ---
+FROM node:20-alpine AS builder
 
 WORKDIR /usr/src/app
 
+# Install dependencies first (better caching)
 COPY package*.json ./
 RUN npm install
 
+# Copy source code
 COPY . .
-RUN npm run build ${APP_NAME}
 
-# Production stage
-FROM node:18-alpine AS production
+# Build the shared library first
+RUN npm run build common
 
-ARG APP_NAME
-ENV APP_NAME=${APP_NAME}
+# Build the specific service (passed via build arg)
+ARG SERVICE_NAME
+RUN npx nest build ${SERVICE_NAME}
+
+# --- Production Stage ---
+FROM node:20-alpine
 
 WORKDIR /usr/src/app
 
 COPY package*.json ./
 RUN npm install --only=production
 
-COPY --from=development /usr/src/app/dist/apps/${APP_NAME} ./dist/apps/${APP_NAME}
-# Also copy shared libs if they are external, but Nest build usually bundles them
-# Fix: Nest monorepo build typically outputs to dist/apps/APP_NAME
+# Copy built assets from builder
+ARG SERVICE_NAME
+COPY --from=builder /usr/src/app/dist/apps/${SERVICE_NAME} ./dist
+COPY --from=builder /usr/src/app/dist/libs ./dist/libs
 
-CMD ["sh", "-c", "node dist/apps/${APP_NAME}/main"]
+# Environment variables will be provided via docker-compose
+CMD ["node", "dist/main"]

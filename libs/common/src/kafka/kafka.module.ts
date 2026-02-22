@@ -15,7 +15,7 @@ export class KafkaModule {
                         options: {
                             client: {
                                 clientId: serviceName.toLowerCase(),
-                                brokers: KAFKA_BROKERS,
+                                brokers: process.env.KAFKA_BROKERS ? process.env.KAFKA_BROKERS.split(',') : KAFKA_BROKERS,
                             },
                             consumer: {
                                 groupId: `${serviceName.toLowerCase()}-consumer`,
