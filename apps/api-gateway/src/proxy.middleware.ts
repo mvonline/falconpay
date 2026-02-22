@@ -18,16 +18,41 @@ export class ProxyMiddleware implements NestMiddleware {
         if (req.method === 'OPTIONS') {
             return next();
         }
-        console.log('Gateway Request:', req.method, req.url);
-        const path = Object.keys(this.routes).find((p) => req.url.startsWith(p));
 
-        if (path) {
-            const target = this.routes[path];
+        const fullPath = req.originalUrl || req.url;
+        console.log(`[Gateway] incoming: ${req.method} ${fullPath}`);
+
+        const routeKey = Object.keys(this.routes).find((p) => fullPath.startsWith(p));
+
+        if (routeKey) {
+            const target = this.routes[routeKey];
+            console.log(`[Gateway] proxying ${fullPath} to ${target}`);
+
             return proxy(target, {
-                proxyReqPathResolver: (req) => req.url,
-            })(req, res, next);
+                proxyReqPathResolver: () => fullPath,
+                userResHeaderDecorator: (headers) => {
+                    // Avoid duplicate headers or issues with NestJS
+                    return headers;
+                },
+                proxyErrorHandler: (err, res, next) => {
+                    console.error(`[Gateway] Proxy Error for ${fullPath}:`, err.message);
+                    res.status(502).json({
+                        message: 'Gateway Proxy Error',
+                        error: err.message,
+                        path: fullPath
+                    });
+                }
+            })(req, res, (err) => {
+                if (err) {
+                    console.error(`[Gateway] Proxy Next Error for ${fullPath}:`, err);
+                    return next(err);
+                }
+                // If the proxy didn't finish the request and didn't error, continue
+                // But normally proxy should finish the request.
+            });
         }
 
+        console.log(`[Gateway] no route found for ${fullPath}`);
         next();
     }
 }
