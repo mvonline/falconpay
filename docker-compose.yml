@@ -1,6 +1,32 @@
 version: '3.8'
 
 services:
+  # --- Edge Router (Reverse Proxy & SSL) ---
+  traefik:
+    image: traefik:v2.10
+    container_name: falconpay-traefik
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.myresolver.acme.tlschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.email=${ACME_EMAIL:-admin@falconpay.com}"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      # --- Force SSL Middleware ---
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8081:8080" # Dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./letsencrypt:/letsencrypt
+    networks:
+      - falconpay-network
+
   # --- Databases ---
   postgres_auth:
     image: postgres:16-alpine
@@ -224,7 +250,13 @@ services:
     volumes:
       - .:/usr/src/app
     ports:
-      - "3000:3000"
+      - "3000" # Internal only, exposed via Traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gateway-dev.rule=Host(`${DOMAIN_NAME:-localhost}`)"
+      - "traefik.http.routers.gateway-dev.entrypoints=websecure"
+      - "traefik.http.routers.gateway-dev.tls.certresolver=myresolver"
+      - "traefik.http.services.gateway-dev.loadbalancer.server.port=3000"
     command: npm run start:dev -- api-gateway
     environment:
       - AUTH_SERVICE_URL=http://auth-service-dev:3001
@@ -388,15 +420,19 @@ services:
 
   frontend-dev:
     profiles: [ "dev" ]
-    build:
-      context: ./frontend
+    image: node:20-alpine
     container_name: falconpay-frontend-dev
+    working_dir: /usr/src/app
+    volumes:
+      - ./frontend:/usr/src/app
+      - /usr/src/app/node_modules
     ports:
-      - "80:80"
-    networks:
-      - falconpay-network
+      - "80:5173"
+    command: sh -c "npm install && npm run dev -- --host"
     depends_on:
       - api-gateway-dev
+    networks:
+      - falconpay-network
 
   # --- PRODUCTION PROFILE (Optimized) ---
   api-gateway:
@@ -407,7 +443,13 @@ services:
         SERVICE_NAME: api-gateway
     container_name: falconpay-api-gateway
     ports:
-      - "3000:3000"
+      - "3000" # Internal only, exposed via Traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gateway.rule=Host(`${DOMAIN_NAME:-falconpay.com}`)"
+      - "traefik.http.routers.gateway.entrypoints=websecure"
+      - "traefik.http.routers.gateway.tls.certresolver=myresolver"
+      - "traefik.http.services.gateway.loadbalancer.server.port=3000"
     environment:
       - AUTH_SERVICE_URL=http://auth-service:3001
       - USER_SERVICE_URL=http://user-service:3002

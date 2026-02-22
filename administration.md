@@ -6,8 +6,10 @@ This document contains the default credentials and administrative access points 
 
 | Service | Access Point | Username | Password | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| **API Gateway** | `localhost:3000` | - | - | Public Entry Point |
+| **Traefik Dashboard** | `localhost:8081` | - | - | Proxy Oversight |
+| **API Gateway (HTTPS)**| `https://localhost` | - | - | Forced SSL Entry |
 | **Postgres (Auth)** | `localhost:5432` | `falconpay` | `password` | DB: `auth_db` |
+
 | **Postgres (User)** | `localhost:5433` | `falconpay` | `password` | DB: `user_db` |
 | **Postgres (Payment)** | `localhost:5434` | `falconpay` | `password` | DB: `payment_db` |
 | **Postgres (Wallet)** | `localhost:5435` | `falconpay` | `password` | DB: `wallet_db` |
